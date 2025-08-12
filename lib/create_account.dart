@@ -28,7 +28,7 @@ class _CreateAccountState extends State<CreateAccount> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text(
-                  'PawPal',
+                  'MakanSmart',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -73,7 +73,7 @@ class _CreateAccountState extends State<CreateAccount> {
                   child: Column(
                     children: [
                       const Text(
-                        'Join PawPal!',
+                        'Join MakanSmart!',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
