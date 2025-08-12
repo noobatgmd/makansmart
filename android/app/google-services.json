@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "518185000909",
+    "project_id": "makansmart-9d5e2",
+    "storage_bucket": "makansmart-9d5e2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:518185000909:android:66fcc77765b328ded7ee84",
+        "android_client_info": {
+          "package_name": "com.example.makansmart"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxofqeN6sFKtTUqOIyex8mhgsqqwMH2eQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
