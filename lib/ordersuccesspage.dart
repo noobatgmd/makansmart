@@ -8,12 +8,18 @@ class OrderSuccessPage extends StatefulWidget {
   final List<CartItem> orderItems;
   final double totalAmount;
   final String? orderId;
+  final bool? isInFoodCourt; // Add this to know if delivery was in food court
+  final double? serviceFee; // Add this to pass service fee
+  final double? deliveryFee; // Add this to pass delivery fee
 
   const OrderSuccessPage({
     Key? key,
     required this.orderItems,
     required this.totalAmount,
     this.orderId,
+    this.isInFoodCourt,
+    this.serviceFee,
+    this.deliveryFee,
   }) : super(key: key);
 
   @override
@@ -62,6 +68,45 @@ class _OrderSuccessPageState extends State<OrderSuccessPage> {
       0.0,
       (sum, item) => sum + (item.price * item.quantity),
     );
+  }
+
+  // Get service fee (use passed value or determine from order details)
+  double get _serviceFee {
+    if (widget.serviceFee != null) return widget.serviceFee!;
+
+    // Try to get from order details
+    if (_orderDetails != null && _orderDetails!['isInFoodCourt'] == false) {
+      return 0.5;
+    }
+
+    // Fallback: determine from widget.isInFoodCourt
+    if (widget.isInFoodCourt != null && !widget.isInFoodCourt!) {
+      return 0.5;
+    }
+
+    return 0.0;
+  }
+
+  // Get delivery fee (use passed value or determine from order details)
+  double get _deliveryFee {
+    if (widget.deliveryFee != null) return widget.deliveryFee!;
+
+    // Try to get from order details
+    if (_orderDetails != null && _orderDetails!['isInFoodCourt'] == false) {
+      return 0.5;
+    }
+
+    // Fallback: determine from widget.isInFoodCourt
+    if (widget.isInFoodCourt != null && !widget.isInFoodCourt!) {
+      return 0.5;
+    }
+
+    return 0.0;
+  }
+
+  // Check if this was a non-food court delivery
+  bool get _hasDeliveryFees {
+    return _serviceFee > 0 || _deliveryFee > 0;
   }
 
   String _getEstimatedDeliveryTime() {
@@ -506,9 +551,9 @@ class _OrderSuccessPageState extends State<OrderSuccessPage> {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFFFFF3CD),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFFFFE082).withOpacity(0.5)),
+        border: Border.all(color: Colors.white),
       ),
       child: Column(
         children: [
@@ -518,7 +563,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage> {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: Color(0xFFFF9800),
+                  color: Color(0xFF8BC34A),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Icon(Icons.payment, color: Colors.white, size: 12),
@@ -529,7 +574,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFFE65100),
+                  color: Color(0xFF8BC34A),
                 ),
               ),
             ],
@@ -554,6 +599,50 @@ class _OrderSuccessPageState extends State<OrderSuccessPage> {
               ),
             ],
           ),
+
+          // Service Fee (only show if there was a service fee)
+          if (_serviceFee > 0) ...[
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Service Fee',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+                Text(
+                  'SGD \$${_serviceFee.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFD84315),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // Delivery Fee (only show if there was a delivery fee)
+          if (_deliveryFee > 0) ...[
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Delivery Fee',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+                Text(
+                  'SGD \$${_deliveryFee.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFD84315),
+                  ),
+                ),
+              ],
+            ),
+          ],
 
           SizedBox(height: 12),
 

@@ -93,9 +93,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
   final TextEditingController _classController = TextEditingController();
   final CartManager _cartManager = CartManager();
 
+  // Keep a local copy of cart items that we can modify
+  late List<CartItem> _currentCartItems;
+
   @override
   void initState() {
     super.initState();
+    _currentCartItems = List.from(widget.cartItems);
     _loadSavedCardDetails();
   }
 
@@ -118,14 +122,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   double get _subtotal {
-    return widget.cartItems.fold(
+    return _currentCartItems.fold(
       0.0,
       (sum, item) => sum + (item.price * item.quantity),
     );
   }
 
+  double get _serviceFee {
+    return !_isInFoodCourt ? 0.5 : 0.0;
+  }
+
+  double get _deliveryFee {
+    return !_isInFoodCourt ? 0.5 : 0.0;
+  }
+
   double get _total {
-    return _subtotal; // Add any taxes, delivery fees, etc. here if needed
+    return _subtotal + _serviceFee + _deliveryFee;
   }
 
   void _navigateToCardDetails() async {
@@ -149,7 +161,125 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
   }
 
+  // Show confirmation dialog before removing item
+  void _showRemoveItemDialog(CartItem item, int index) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+              SizedBox(width: 8),
+              Text(
+                'Remove Item',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          content: RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(text: 'Are you sure you want to remove '),
+                TextSpan(
+                  text: item.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                TextSpan(text: ' from your cart?'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _removeItemFromCart(index);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Remove',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Remove item from cart
+  void _removeItemFromCart(int index) {
+    setState(() {
+      final removedItem = _currentCartItems[index];
+      _currentCartItems.removeAt(index);
+
+      // Also remove from the actual cart manager using the correct method name
+      _cartManager.removeFromCart(removedItem.name);
+    });
+
+    // Show confirmation snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Text('Item removed from cart'),
+          ],
+        ),
+        backgroundColor: Color(0xFF8BC34A),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+
+    // If cart is empty, go back to previous screen
+    if (_currentCartItems.isEmpty) {
+      Navigator.pop(context);
+    }
+  }
+
   void _placeOrder() async {
+    if (_currentCartItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Your cart is empty'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (_savedCardDetails == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -190,7 +320,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       await Future.delayed(Duration(seconds: 2));
 
       // 🔥 KEY ADDITION: Save order to history BEFORE clearing cart and navigating
-      await OrderHistoryManager.saveLastOrder(widget.cartItems, _total);
+      await OrderHistoryManager.saveLastOrder(_currentCartItems, _total);
 
       // Clear the cart after successful order
       _cartManager.clearCart();
@@ -204,8 +334,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
         context,
         MaterialPageRoute(
           builder: (context) => OrderSuccessPage(
-            orderItems: widget.cartItems,
+            orderItems: _currentCartItems,
             totalAmount: _total,
+            isInFoodCourt: _isInFoodCourt,
+            serviceFee: _serviceFee,
+            deliveryFee: _deliveryFee,
           ),
         ),
       );
@@ -278,7 +411,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     SizedBox(height: 24),
 
                     // Order Items
-                    ...widget.cartItems.map((item) => _buildOrderItem(item)),
+                    ..._currentCartItems.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      CartItem item = entry.value;
+                      return _buildOrderItem(item, index);
+                    }),
 
                     SizedBox(height: 24),
 
@@ -512,7 +649,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: Colors.orange,
+                  color: Colors.lightGreen,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Icon(Icons.location_on, color: Colors.white, size: 12),
@@ -523,7 +660,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.orange,
+                  color: Colors.lightGreen,
                 ),
               ),
             ],
@@ -648,6 +785,35 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ),
           SizedBox(height: 16),
 
+          // Additional fee notice for non-food court delivery
+          if (!_isInFoodCourt) ...[
+            Container(
+              padding: EdgeInsets.all(12),
+              margin: EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Additional service fee (\$0.50) and delivery fee (\$0.50) apply for outside food court delivery.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange[800],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // Conditional Input Field
           if (_isInFoodCourt) ...[
             Text(
@@ -692,7 +858,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ),
           ] else ...[
             Text(
-              'Class',
+              'Location',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -708,7 +874,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 });
               },
               decoration: InputDecoration(
-                hintText: 'Enter your class (e.g., T634, T18B504, etc.)',
+                hintText:
+                    'Enter your Location (e.g., Class - T18B504, Study Area - T11Square, Different Food Courts? etc...)',
                 hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
                 filled: true,
                 fillColor: Colors.grey[50],
@@ -736,7 +903,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Widget _buildOrderItem(CartItem item) {
+  Widget _buildOrderItem(CartItem item, int index) {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
       padding: EdgeInsets.all(16),
@@ -811,25 +978,60 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ),
           ),
 
-          // Quantity and Price
+          // Quantity, Price, and Delete Button
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                'SGD \$${item.price.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF8BC34A),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'SGD \$${(item.price * item.quantity).toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF8BC34A),
+                        ),
+                      ),
+                      if (item.quantity > 1) ...[
+                        SizedBox(height: 4),
+                        Text(
+                          'Qty: ${item.quantity}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  SizedBox(width: 12),
+                  // Delete Button
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _showRemoveItemDialog(item, index);
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              if (item.quantity > 1) ...[
-                SizedBox(height: 4),
-                Text(
-                  'Qty: ${item.quantity}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
             ],
           ),
         ],
@@ -896,6 +1098,50 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ],
           ),
 
+          // Service Fee (only if not in food court)
+          if (!_isInFoodCourt) ...[
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Service Fee',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+                Text(
+                  'SGD \$${_serviceFee.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // Delivery Fee (only if not in food court)
+          if (!_isInFoodCourt) ...[
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Delivery Fee',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+                Text(
+                  'SGD \$${_deliveryFee.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
           SizedBox(height: 16),
           Divider(color: Colors.grey[200]),
           SizedBox(height: 16),
@@ -932,7 +1178,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       width: double.infinity,
       margin: EdgeInsets.all(20),
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _placeOrder,
+        onPressed: _isLoading || _currentCartItems.isEmpty ? null : _placeOrder,
         style: ElevatedButton.styleFrom(
           backgroundColor: Color(0xFF8BC34A),
           foregroundColor: Colors.white,
@@ -962,7 +1208,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ],
               )
             : Text(
-                'Place Order',
+                _currentCartItems.isEmpty ? 'Cart is Empty' : 'Place Order',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
       ),
